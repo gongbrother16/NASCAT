@@ -1,4 +1,6 @@
 import {defs, tiny} from './examples/common.js';
+import { Text_Line } from './examples/text-demo.js';
+import { Shape_From_File } from "./examples/obj-file-demo.js";
 
 const {
     Vector, Vector3, vec, vec3, vec4, color, hex_color, Shader, Matrix, Mat4, Light, Shape, Material, Scene, Texture,
@@ -12,6 +14,7 @@ export class NASCAT extends Scene {
         // constructor(): Scenes begin by populating initial values like the Shapes and Materials they'll need.
         super();
         this.shapes = {
+            startingPage: new Cube(),
             side_L: new Cube(),
             side_R: new Cube(),
             road: new Cube(),
@@ -19,7 +22,9 @@ export class NASCAT extends Scene {
             horizon_R: new Cube(),
             horizon_L: new Cube(),
             axis: new Axis_Arrows(),
-            player: new Cube()
+            player: new Shape_From_File("assets/cat.obj"),
+            text: new Text_Line(35),
+
         }
 
         this.materials = {
@@ -56,10 +61,23 @@ export class NASCAT extends Scene {
             player: new Material(new Textured_Phong(), {
                 color: hex_color("#000000"),
                 ambient: 1, diffusivity: 0.1, specularity: 0.1,
-                texture: new Texture("assets/face_4.png", "LINEAR_MIPMAP_LINEAR"),
+                texture: new Texture("assets/Cat_texture.jpg"),
                 velocity: 1.0
-            })
+            }),
+            startingPage: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1,
+                diffusivity: 0.3,
+                specularity: 1,
+                texture: new Texture("assets/cat.jpg", "LINEAR_MIPMAP_LINEAR"),
+            }),
         }
+        const texture = new defs.Textured_Phong(1);
+        this.text_image = new Material(texture, {
+            ambient: 1, diffusivity: 0, specularity: 0,
+            texture: new Texture("assets/text.png")
+        });
+
         this.initial_camera_location = Mat4.look_at(vec3(0, 10, 20), vec3(0, 0, 0), vec3(0, 1, 0));
         this.poop = 0;
 
@@ -100,7 +118,7 @@ export class NASCAT extends Scene {
         this.horizon_R = Mat4.translation((h_x + 28), h_y, h_z);
         this.horizon_L = Mat4.translation((h_x - 28), h_y, h_z);
         this.player = Mat4.translation(this.p_x,this.p_y,this.p_z);
-
+        this.startingPage = Mat4.translation(0, 100, -12);
 
 
         let z = 30;
@@ -116,14 +134,19 @@ export class NASCAT extends Scene {
         this.horizon.post_multiply(Mat4.scale(14, 14, 1));
         this.horizon_R.post_multiply(Mat4.scale(14, 14, 1));
         this.horizon_L.post_multiply(Mat4.scale(14, 14, 1));
+        this.startingPage.post_multiply(Mat4.scale(14, 14, 1));
+
+        //Game Starts
+        this.start_game = 0;
 
     }
 
 
     make_control_panel() {
+        this.key_triggered_button("START", ["u"], () => this.start_game =1);
+        this.new_line();
         this.key_triggered_button("let us move", ["i"], () => this.is_accel = true, undefined, () => this.is_accel = false);
         this.key_triggered_button("slowdown", ["k"], () => this.isdecel = true, undefined, () => this.isdecel = false);
-
         this.new_line();
         this.key_triggered_button("left", ["j"], () => this.is_L = true, undefined, () => this.is_L = false);
         this.key_triggered_button("right", ["l"], () => this.is_R = true, undefined, () => this.is_R = false);
@@ -153,15 +176,26 @@ export class NASCAT extends Scene {
         //Handle Movement
         this.move_player(this.is_R, this.is_L, this.m_spd, this.is_accel, this.isdecel, dt);
 
-        //Draw all shapes
-        this.shapes.player.draw(context, program_state, this.player, this.materials.player);
-        this.shapes.side_L.draw(context, program_state, this.side_L, this.materials.grass);
-        this.shapes.side_R.draw(context, program_state, this.side_R, this.materials.grass);
-        this.shapes.road.draw(context, program_state, this.road, this.materials.highway);
-        this.shapes.horizon.draw(context, program_state, this.horizon, this.materials.horizon);
-        this.shapes.horizon_R.draw(context, program_state, this.horizon_R, this.materials.horizon_R);
-        this.shapes.horizon_L.draw(context, program_state, this.horizon_L, this.materials.horizon_L);
+        //When the Game Starts
+        if(this.start_game == 0){
+            const new_camera_location = this.camera_matrix.times(Mat4.translation(0,-96,0));
+            program_state.set_camera(new_camera_location);
+            this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.startingPage);
+            let text_location = Mat4.identity().times(Mat4.translation(-7,91,-9)).times(Mat4.scale(0.4,0.4,0.4));
+            this.shapes.text.set_string('Press [u] to start racing!', context.context);
+            this.shapes.text.draw(context, program_state, text_location, this.text_image);
+        }
+        else if(this.start_game == 1) {
+            program_state.set_camera(this.camera_matrix);
+            this.shapes.player.draw(context, program_state, this.player, this.materials.player);
+            this.shapes.side_L.draw(context, program_state, this.side_L, this.materials.grass);
+            this.shapes.side_R.draw(context, program_state, this.side_R, this.materials.grass);
+            this.shapes.road.draw(context, program_state, this.road, this.materials.highway);
+            this.shapes.horizon.draw(context, program_state, this.horizon, this.materials.horizon);
+            this.shapes.horizon_R.draw(context, program_state, this.horizon_R, this.materials.horizon_R);
+            this.shapes.horizon_L.draw(context, program_state, this.horizon_L, this.materials.horizon_L);
 
+        }
     }
 
 
