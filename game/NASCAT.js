@@ -156,22 +156,40 @@ export class NASCAT extends Scene {
         this.horizon_R.post_multiply(Mat4.scale(14, 14, 1));
         this.horizon_L.post_multiply(Mat4.scale(14, 14, 1));
         this.startingPage.post_multiply(Mat4.scale(14, 14, 1));
+        //Timer
+        this.timer=0;
+        this.record=0;
+        //Sounds
+        this.background_sound = new Audio("assets/racer.mp3");
+        this.start_sound = new Audio("assets/car_start.mp3")
+        this.accel_sound= new Audio("assets/accel.mp3");
+
 
         //Game Starts
         this.start_game = 0;
 
     }
-
+    starting_game() {
+        this.start_game = 1;
+        this.start_sound.play();
+    }
+    accelerating(){
+        this.is_accel=true;
+        this.accel_sound.play();
+    }
 
     make_control_panel() {
-        this.key_triggered_button("START", ["u"], () => this.start_game =1);
+        this.key_triggered_button("START", ["u"], () => this.starting_game());
         this.new_line();
-        this.key_triggered_button("let us move", ["i"], () => this.is_accel = true, undefined, () => this.is_accel = false);
+        this.key_triggered_button("let us move", ["i"], () => this.accelerating(), undefined, () => this.is_accel = false);
         this.key_triggered_button("slowdown", ["k"], () => this.isdecel = true, undefined, () => this.isdecel = false);
         this.new_line();
         this.key_triggered_button("left", ["j"], () => this.is_L = true, undefined, () => this.is_L = false);
         this.key_triggered_button("right", ["l"], () => this.is_R = true, undefined, () => this.is_R = false);
-
+        this.new_line();
+        this.live_string(box => { box.textContent = "Timer: " + Math.round(this.timer) });
+        this.new_line();
+        this.live_string(box => { box.textContent = "Your record: " + Math.round(this.record) });
     }
     display(context, program_state) {
 
@@ -199,6 +217,8 @@ export class NASCAT extends Scene {
         if(this.start_game === 0){
             const new_camera_location = this.camera_matrix.times(Mat4.translation(0,-96,0));
             program_state.set_camera(new_camera_location);
+            this.background_sound.play();
+            this.background_sound.loop = true;
             this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.startingPage);
             let text_location = Mat4.identity().times(Mat4.translation(-7,91,-9)).times(Mat4.scale(0.4,0.4,0.4));
             this.shapes.text.set_string('Press [u] to start racing!', context.context);
@@ -206,6 +226,8 @@ export class NASCAT extends Scene {
         }
         else if(this.start_game === 1) {
             program_state.set_camera(this.camera_matrix);
+            this.timer += this.materials.highway.velocity*dt;
+            this.record = Math.max(this.record, this.timer);
             this.shapes.player.draw(context, program_state, this.player, this.materials.player);
             this.shapes.side_L.draw(context, program_state, this.side_L, this.materials.grass);
             this.shapes.side_R.draw(context, program_state, this.side_R, this.materials.grass);
@@ -213,7 +235,6 @@ export class NASCAT extends Scene {
             this.shapes.horizon.draw(context, program_state, this.horizon, this.materials.horizon);
             this.shapes.horizon_R.draw(context, program_state, this.horizon_R, this.materials.horizon_R);
             this.shapes.horizon_L.draw(context, program_state, this.horizon_L, this.materials.horizon_L);
-
             this.shapes.dawg.draw(context, program_state, this.dawg, this.materials.dawg);
 
             //Handle Movement
@@ -249,6 +270,7 @@ export class NASCAT extends Scene {
             this.p_z = 1;
 
             // Score Restart Below
+            this.timer=0;
         }
     }
 
