@@ -22,6 +22,7 @@ export class NASCAT extends Scene {
             horizon_R: new Cube(),
             horizon_L: new Cube(),
             axis: new Axis_Arrows(),
+            obstacle: new Cube(),
             player: new Shape_From_File("assets/cat.obj"),
             text: new Text_Line(35),
 
@@ -71,6 +72,12 @@ export class NASCAT extends Scene {
                 specularity: 1,
                 texture: new Texture("assets/cat.jpg", "LINEAR_MIPMAP_LINEAR"),
             }),
+            obstacle: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1, diffusivity: 0.1, specularity: 0.1,
+                texture: new Texture("assets/dawg.png"),
+                velocity: 1.0
+            }),
         }
         const texture = new defs.Textured_Phong(1);
         this.text_image = new Material(texture, {
@@ -119,7 +126,8 @@ export class NASCAT extends Scene {
         this.horizon_L = Mat4.translation((h_x - 28), h_y, h_z);
         this.player = Mat4.translation(this.p_x,this.p_y,this.p_z);
         this.startingPage = Mat4.translation(0, 100, -12);
-
+        this.timer_text =  Mat4.translation(-7, 0.25, -9);
+        this.timer = Mat4.translation(-7, 0.20, -9);
 
         let z = 30;
         let x_scale = 15;
@@ -136,22 +144,45 @@ export class NASCAT extends Scene {
         this.horizon_L.post_multiply(Mat4.scale(14, 14, 1));
         this.startingPage.post_multiply(Mat4.scale(14, 14, 1));
 
+        //Timer
+        this.timer=0;
+        this.record=0;
+
+        //Sounds
+        this.background_sound = new Audio("assets/racer.mp3");
+        this.start_sound = new Audio("assets/car_start.mp3")
+        this.accel_sound= new Audio("assets/accel.mp3");
+
         //Game Starts
         this.start_game = 0;
 
     }
 
 
+    starting_game(){
+        this.start_game=1;
+        this.start_sound.play();
+    }
+
+    accelerating(){
+        this.is_accel=true;
+        this.accel_sound.play();
+    }
+
     make_control_panel() {
-        this.key_triggered_button("START", ["u"], () => this.start_game =1);
+        this.key_triggered_button("START", ["u"], () => this.starting_game());
         this.new_line();
-        this.key_triggered_button("let us move", ["i"], () => this.is_accel = true, undefined, () => this.is_accel = false);
+        this.key_triggered_button("let us move", ["i"], () => this.accelerating() , undefined, () => this.is_accel = false);
         this.key_triggered_button("slowdown", ["k"], () => this.isdecel = true, undefined, () => this.isdecel = false);
         this.new_line();
         this.key_triggered_button("left", ["j"], () => this.is_L = true, undefined, () => this.is_L = false);
         this.key_triggered_button("right", ["l"], () => this.is_R = true, undefined, () => this.is_R = false);
+        this.new_line();
+        this.live_string(box => { box.textContent = "Score: " + Math.round(this.timer) });
 
     }
+
+
     display(context, program_state) {
 
         if (!context.scratchpad.controls) {
@@ -178,15 +209,21 @@ export class NASCAT extends Scene {
 
         //When the Game Starts
         if(this.start_game == 0){
+            //Starting Page
             const new_camera_location = this.camera_matrix.times(Mat4.translation(0,-96,0));
             program_state.set_camera(new_camera_location);
-            this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.startingPage);
+            this.background_sound.play();
+            this.background_sound.loop = true;
+            this.shapes.startingPage.draw(context, program_state,this.startingPage, this.materials.startingPage);
             let text_location = Mat4.identity().times(Mat4.translation(-7,91,-9)).times(Mat4.scale(0.4,0.4,0.4));
             this.shapes.text.set_string('Press [u] to start racing!', context.context);
             this.shapes.text.draw(context, program_state, text_location, this.text_image);
+
+
         }
         else if(this.start_game == 1) {
             program_state.set_camera(this.camera_matrix);
+            this.timer += this.materials.highway.velocity*dt;
             this.shapes.player.draw(context, program_state, this.player, this.materials.player);
             this.shapes.side_L.draw(context, program_state, this.side_L, this.materials.grass);
             this.shapes.side_R.draw(context, program_state, this.side_R, this.materials.grass);
@@ -194,7 +231,6 @@ export class NASCAT extends Scene {
             this.shapes.horizon.draw(context, program_state, this.horizon, this.materials.horizon);
             this.shapes.horizon_R.draw(context, program_state, this.horizon_R, this.materials.horizon_R);
             this.shapes.horizon_L.draw(context, program_state, this.horizon_L, this.materials.horizon_L);
-
         }
     }
 
