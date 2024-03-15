@@ -6,7 +6,11 @@ const {
     Vector, Vector3, vec, vec3, vec4, color, hex_color, Shader, Matrix, Mat4, Light, Shape, Material, Scene, Texture,
 } = tiny;
 
-const {Cube, Axis_Arrows, Textured_Phong} = defs
+const {Square,Cube, Axis_Arrows, Textured_Phong} = defs
+
+function random_numb(min, max) {
+    return Math.random() * (max - min) + min;
+}
 
 export class NASCAT extends Scene {
 
@@ -17,14 +21,16 @@ export class NASCAT extends Scene {
             startingPage: new Cube(),
             side_L: new Cube(),
             side_R: new Cube(),
+            tree_L: new Square(),
+            tree_R: new Square(),
             road: new Cube(),
             horizon: new Cube(),
             horizon_R: new Cube(),
             horizon_L: new Cube(),
             axis: new Axis_Arrows(),
             player: new Shape_From_File("assets/cat.obj"),
-            text: new Text_Line(35),
-            dawg: new Shape_From_File("assets/dog.obj"),
+            text: new Text_Line(40),
+            dawg: new Square(),
         }
 
         this.materials = {
@@ -32,6 +38,12 @@ export class NASCAT extends Scene {
                 color: hex_color("#000000"),
                 ambient: 0.7, diffusivity: 0.1, specularity: 0.1,
                 texture: new Texture("assets/sides.png", "LINEAR_MIPMAP_LINEAR"),
+                velocity: 1.0
+            }),
+            trees: new Material(new Textured_Phong, {
+                color: hex_color("#000000"),
+                ambient: 0.8, diffusivity: 0.1, specularity: 0.1,
+                texture: new Texture("assets/tree.png", "LINEAR_MIPMAP_LINEAR"),
                 velocity: 1.0
             }),
             highway: new Material(new Texture_Scroll_Y(), {
@@ -64,10 +76,22 @@ export class NASCAT extends Scene {
                 texture: new Texture("assets/Cat_texture.jpg"),
                 velocity: 1.0
             }),
-            dawg: new Material(new Textured_Phong(), {
+            dawg1: new Material(new Textured_Phong(), {
                 color: hex_color("#000000"),
                 ambient: 1, diffusivity: 0.1, specularity: 0.1,
-                texture: new Texture("assets/sniper.jpg"),
+                texture: new Texture("assets/dawg.png"),
+                velocity: 1.0
+            }),
+            dawg2: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1, diffusivity: 0.1, specularity: 0.1,
+                texture: new Texture("assets/doge.png"),
+                velocity: 1.0
+            }),
+            dawg3: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1, diffusivity: 0.1, specularity: 0.1,
+                texture: new Texture("assets/husky.png"),
                 velocity: 1.0
             }),
             startingPage: new Material(new Textured_Phong(), {
@@ -76,6 +100,13 @@ export class NASCAT extends Scene {
                 diffusivity: 0.3,
                 specularity: 1,
                 texture: new Texture("assets/cat.jpg", "LINEAR_MIPMAP_LINEAR"),
+            }),
+            endingPage: new Material(new Textured_Phong(), {
+                color: hex_color("#000000"),
+                ambient: 1,
+                diffusivity: 0.3,
+                specularity: 1,
+                texture: new Texture("assets/the_end.jpg", "LINEAR_MIPMAP_LINEAR"),
             }),
         }
         const texture = new defs.Textured_Phong(1);
@@ -125,16 +156,29 @@ export class NASCAT extends Scene {
         this.d_y = 0;
         this.d_z = -40;
 
+        //Tree coords
+        this.t_lx=-3  ;
+        this.t_y=1 ;
+        this.t_lz=-40  ;
+        this.t_rx=3  ;
+        this.t_rz=-50  ;
+
+        //Scaling of tree
+        this.t_scl= 2;
+
+        //Tree speed;
+        this.t_spd =1;
+
         //Scaling of the dog
         this.d_scl = 0.5;
 
-        //speed of dog (1 work fine for now)
+        //speed of dog
         this.d_spd = 1;
 
         //doggy matrix
         this.dawg = Mat4.translation(this.d_x, this.d_y, this.d_z);
-
-
+        this.tree_L = Mat4.translation(this.t_lx, this.t_y, this.t_lz);
+        this.tree_R = Mat4.translation(this.t_rx, this.t_y, this.t_rz);
         this.horizon = Mat4.translation(h_x, h_y, h_z);
         this.horizon_R = Mat4.translation((h_x + 28), h_y, h_z);
         this.horizon_L = Mat4.translation((h_x - 28), h_y, h_z);
@@ -149,25 +193,30 @@ export class NASCAT extends Scene {
         this.road.post_multiply(Mat4.scale(1.5, 1, z));
         this.side_R.post_multiply(Mat4.scale(x_scale, 1, z));
         this.side_L.post_multiply(Mat4.scale(x_scale, 1, z));
-
         this.player.post_multiply(Mat4.scale(0.25, 0.25, 0.25));
 
         this.horizon.post_multiply(Mat4.scale(14, 14, 1));
         this.horizon_R.post_multiply(Mat4.scale(14, 14, 1));
         this.horizon_L.post_multiply(Mat4.scale(14, 14, 1));
         this.startingPage.post_multiply(Mat4.scale(14, 14, 1));
+
         //Timer
         this.timer=0;
         this.record=0;
+
         //Sounds
         this.background_sound = new Audio("assets/racer.mp3");
         this.start_sound = new Audio("assets/car_start.mp3")
-        this.accel_sound= new Audio("assets/accel.mp3");
-
+        this.accel_sound = new Audio("assets/accel.mp3");
+        this.crash_sound = new Audio("assets/meow.mp3")
 
         //Game Starts
         this.start_game = 0;
 
+    }
+    background_music(){
+        this.background_sound.play();
+        this.background_sound.loop = true;
     }
     starting_game() {
         this.start_game = 1;
@@ -176,6 +225,17 @@ export class NASCAT extends Scene {
     accelerating(){
         this.is_accel=true;
         this.accel_sound.play();
+    }
+
+    getRandomDog(){
+        let type=Math.random()*3;
+        if (type < 1) {
+            return this.materials.dawg1;
+        } else if (type >=1 && type < 2) {
+            return this.materials.dawg2;
+        } else if (type >= 2) {
+            return this.materials.dawg3;
+        }
     }
 
     make_control_panel() {
@@ -217,8 +277,7 @@ export class NASCAT extends Scene {
         if(this.start_game === 0){
             const new_camera_location = this.camera_matrix.times(Mat4.translation(0,-96,0));
             program_state.set_camera(new_camera_location);
-            this.background_sound.play();
-            this.background_sound.loop = true;
+            this.background_music();
             this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.startingPage);
             let text_location = Mat4.identity().times(Mat4.translation(-7,91,-9)).times(Mat4.scale(0.4,0.4,0.4));
             this.shapes.text.set_string('Press [u] to start racing!', context.context);
@@ -226,21 +285,35 @@ export class NASCAT extends Scene {
         }
         else if(this.start_game === 1) {
             program_state.set_camera(this.camera_matrix);
+            //Timer
             this.timer += this.materials.highway.velocity*dt;
             this.record = Math.max(this.record, this.timer);
+            //Play BGM
+            this.background_music();
+
             this.shapes.player.draw(context, program_state, this.player, this.materials.player);
             this.shapes.side_L.draw(context, program_state, this.side_L, this.materials.grass);
             this.shapes.side_R.draw(context, program_state, this.side_R, this.materials.grass);
+            this.shapes.tree_L.draw(context, program_state, this.tree_L, this.materials.trees);
+            this.shapes.tree_R.draw(context, program_state, this.tree_R, this.materials.trees);
             this.shapes.road.draw(context, program_state, this.road, this.materials.highway);
             this.shapes.horizon.draw(context, program_state, this.horizon, this.materials.horizon);
             this.shapes.horizon_R.draw(context, program_state, this.horizon_R, this.materials.horizon_R);
             this.shapes.horizon_L.draw(context, program_state, this.horizon_L, this.materials.horizon_L);
-            this.shapes.dawg.draw(context, program_state, this.dawg, this.materials.dawg);
+            this.shapes.dawg.draw(context, program_state, this.dawg, this.materials.dawg1);
 
             //Handle Movement
             this.move_player(this.is_R, this.is_L, this.m_spd, this.is_accel, this.isdecel, dt);
             this.move_dawg(this.d_spd);
+            this.move_treeL(this.t_spd);
+            this.move_treeR(this.t_spd);
 
+            if(this.d_z ===-40){
+                //Update random dog texture
+                this.materials.dawg1 = this.getRandomDog();
+                //Update random speed
+                this.d_spd = random_numb(0.5,1.5);
+            }
             //Handle collision
             this.check_if_died();
 
@@ -252,9 +325,12 @@ export class NASCAT extends Scene {
             // END SCREEN STUFF
             const new_camera_location = this.camera_matrix.times(Mat4.translation(0,-96,0));
             program_state.set_camera(new_camera_location);
-            this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.startingPage);
-            let text_location = Mat4.identity().times(Mat4.translation(-10,91,-9)).times(Mat4.scale(0.4,0.4,0.4));
-            this.shapes.text.set_string('YOU DIED! Press [u] to start again!' , context.context);
+            this.shapes.startingPage.draw(context, program_state,this.startingPage , this.materials.endingPage);
+            let text_location = Mat4.identity().times(Mat4.translation(-4.5,93,-9)).times(Mat4.scale(0.5,0.5,0.5));
+            this.shapes.text.set_string('YOU CRASHED:(' , context.context);
+            this.shapes.text.draw(context, program_state, text_location, this.text_image);
+            text_location.post_multiply(Mat4.translation(-3,-2,0).times(Mat4.scale(0.7,0.7,0.7)));
+            this.shapes.text.set_string('Press [u] to start again!' , context.context);
             this.shapes.text.draw(context, program_state, text_location, this.text_image);
 
             //RESET RELEVANT VARS
@@ -330,11 +406,41 @@ export class NASCAT extends Scene {
         if(this.d_z > 10)
         {
             this.d_z = -40;
-            this.d_x = this.random_numb(-1.2, 1.2);
+            this.d_x = random_numb(-1.2, 1.2);
 
         }
         this.dawg = Mat4.translation(this.d_x, this.d_y, this.d_z);
         this.dawg.post_multiply(Mat4.scale(this.d_scl, this.d_scl, this.d_scl));
+
+    }
+
+    move_treeL(velocity)
+    {
+        this.t_lz += velocity;
+
+        if(this.t_lz > 10)
+        {
+            this.t_lz = -40;
+            this.t_lx = -3;
+
+        }
+        this.tree_L = Mat4.translation(this.t_lx, this.t_y, this.t_lz);
+        this.tree_L.post_multiply(Mat4.scale(this.t_scl, this.t_scl, this.t_scl));
+
+    }
+
+    move_treeR(velocity)
+    {
+        this.t_rz += velocity;
+
+        if(this.t_rz > 10)
+        {
+            this.t_rz = -50;
+            this.t_rx = 3;
+
+        }
+        this.tree_R = Mat4.translation(this.t_rx, this.t_y, this.t_rz);
+        this.tree_R.post_multiply(Mat4.scale(this.t_scl, this.t_scl, this.t_scl));
 
     }
 
@@ -352,13 +458,14 @@ export class NASCAT extends Scene {
     }
 
     death() {
+        this.crash_sound.play();
+        this.background_sound.pause();
         this.start_game = 2;
+
+
     }
 
 
-    random_numb(min, max) {
-        return Math.random() * (max - min) + min;
-    }
 
 }
 
