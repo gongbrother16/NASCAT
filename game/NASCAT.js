@@ -8,6 +8,7 @@ const {
 
 const {Square,Cube, Axis_Arrows, Textured_Phong} = defs
 
+//
 function random_numb(min, max) {
     return Math.random() * (max - min) + min;
 }
